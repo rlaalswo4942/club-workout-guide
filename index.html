@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>동아리 운동 가이드</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head>
+<body>
+<header><a href="#" class="brand">🏋️ 동아리 운동 가이드</a></header>
+<main id="app"></main>
+
+<script>
+// 운동 목록: [부위, [[파일 이름(pages/*.md), 표시 이름], ...]]
+const GROUPS = [
+  ['가슴', [['01-플랫-바벨-벤치프레스', '플랫 바벨 벤치프레스'], ['02-인클라인-벤치프레스', '인클라인 벤치프레스']]],
+  ['어깨', [['03-바벨-숄더-프레스-스탠딩', '바벨 숄더 프레스 (스탠딩)'], ['04-바벨-숄더-프레스-시티드', '바벨 숄더 프레스 (시티드)'],
+            ['05-사이드-레터럴-레이즈', '사이드 레터럴 레이즈'], ['06-벤트오버-레이즈', '벤트오버 레이즈'],
+            ['07-플레이트-프론트-레이즈', '플레이트 프론트 레이즈'], ['08-업라이트-로우', '업라이트 로우']]],
+  ['등 · 승모', [['10-바벨로우', '바벨로우'], ['11-친업-풀업', '친업 · 풀업'], ['09-바벨-슈러그', '바벨 슈러그']]],
+  ['팔', [['12-바벨컬', '바벨컬'], ['13-벤치딥스', '벤치딥스'], ['14-덤벨-킥백', '덤벨 킥백']]],
+  ['하체', [['15-스쿼트', '스쿼트'], ['16-고블릿-스쿼트', '고블릿 스쿼트'], ['17-불가리안-스플릿-스쿼트', '불가리안 스플릿 스쿼트'], ['18-데드리프트', '데드리프트']]],
+];
+const ALL = GROUPS.flatMap(([g, list]) => list.map(([slug, name]) => ({ slug, name, group: g })));
+const app = document.getElementById('app');
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// md 파일은 노션 마크다운 형식 → 노션 전용 태그(callout, video)만 HTML로 바꿔서 렌더
+function render(md) {
+  md = md
+    .replace(/~/g, '\\~') // "8~12"가 취소선으로 바뀌지 않게
+    .replace(/<callout icon="([^"]*)" color="([^"]*)">\r?\n/g, (_, icon, color) => `<div class="callout ${color}"><span class="ci">${icon}</span><div class="cb">\n\n`)
+    .replace(/<\/callout>/g, '\n</div></div>')
+    .replace(/<video source="https:\/\/www\.youtube\.com\/watch\?v=([\w-]+)">(.*?)<\/video>/g, (_, id, cap) =>
+      `<figure class="video"><div class="frame"><iframe src="https://www.youtube.com/embed/${id}" title="${esc(cap)}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div><figcaption>${esc(cap)}</figcaption></figure>`);
+  return marked.parse(md);
+}
+
+async function load(slug) {
+  const res = await fetch(`pages/${encodeURIComponent(slug)}.md`);
+  if (!res.ok) throw new Error(res.status);
+  return render(await res.text());
+}
+
+async function route() {
+  const slug = decodeURIComponent(location.hash.slice(1));
+  const i = ALL.findIndex(p => p.slug === slug);
+  window.scrollTo(0, 0);
+  try {
+    if (i < 0) {
+      const intro = await load('00-안내');
+      const cards = GROUPS.map(([g, list]) => `<h2>${g}</h2><ul class="cards">${
+        list.map(([s, n]) => `<li><a href="#${s}">${n}</a></li>`).join('')}</ul>`).join('');
+      app.innerHTML = `<h1>동아리 운동 가이드</h1><p class="sub">운동별 자극 부위 · 운동 방법 · 주의할 점 · 영상</p>${intro}${cards}`;
+      document.title = '동아리 운동 가이드';
+    } else {
+      const p = ALL[i], prev = ALL[i - 1], next = ALL[i + 1];
+      const nav = `<nav class="pager">${prev ? `<a href="#${prev.slug}">← ${prev.name}</a>` : '<span></span>'}${next ? `<a href="#${next.slug}">${next.name} →</a>` : ''}</nav>`;
+      app.innerHTML = `<a href="#" class="back">← 전체 목록</a><p class="tag">${p.group}</p><h1>${p.name}</h1>${await load(p.slug)}${nav}`;
+      document.title = `${p.name} · 동아리 운동 가이드`;
+    }
+  } catch (e) {
+    app.innerHTML = `<p>페이지를 불러오지 못했습니다. (${e.message})</p><a href="#">← 전체 목록</a>`;
+  }
+}
+addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>
